@@ -1,0 +1,48 @@
+from flask import Flask, render_template, request, jsonify
+import threading
+import queue
+import logging
+
+app = Flask(__name__)
+
+# Use a queue to decouple log processing from the web server
+log_queue = queue.Queue()
+
+# Lock to ensure thread-safe access to logs
+log_lock = threading.Lock()
+
+# Store logs in-memory for this example
+logs = []
+
+def process_logs():
+    while True:
+        log = log_queue.get()
+        if log is None:
+            break  # Signal to exit the thread
+        with log_lock:
+            # Store logs in-memory for simplicity
+            logs.append(log)
+
+# Start a separate thread for log processing
+log_processing_thread = threading.Thread(target=process_logs)
+log_processing_thread.start()
+
+@app.route('/')
+def index():
+    return render_template('index.html', logs=logs)
+
+@app.route('/search', methods=['GET'])
+def search_logs():
+    query = request.args.get('query', '').lower()
+
+    # Filter logs based on the provided query
+    filtered_logs = []
+    with log_lock:
+        for log in logs:
+            if query in str(log).lower():
+                filtered_logs.append(log)
+
+    return jsonify(filtered_logs)
+
+if __name__ == '__main__':
+    app.run(port=5000, debug=True)
