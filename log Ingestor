@@ -1,0 +1,39 @@
+from flask import Flask, request
+import threading
+import queue
+import logging
+
+app = Flask(__name__)
+
+# Use a queue to decouple log ingestion from processing
+log_queue = queue.Queue()
+
+# Lock to ensure thread-safe access to logs
+log_lock = threading.Lock()
+
+def process_logs():
+    while True:
+        log = log_queue.get()
+        if log is None:
+            break  # Signal to exit the thread
+        with log_lock:
+            # Here you can implement the actual log processing logic
+            # For simplicity, we will just print the log in this example
+            print("Processing log:", log)
+
+# Start a separate thread for log processing
+log_processing_thread = threading.Thread(target=process_logs)
+log_processing_thread.start()
+
+@app.route('/ingest', methods=['POST'])
+def ingest_log():
+    try:
+        data = request.json
+        log_queue.put(data)  # Put log into the queue for processing
+        return "Log ingested successfully!", 201
+    except Exception as e:
+        logging.error(f"Error ingesting log: {e}")
+        return "Error ingesting log", 500
+
+if __name__ == '__main__':
+    app.run(port=3000)
